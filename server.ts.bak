@@ -1,174 +1,11 @@
-// ==========================================
-// DB Helpers (Supabase + Local Fallback)
-// ==========================================
-async function getTracks(): Promise<any[]> {
-  if (supabase) {
-    const { data, error } = await supabase.from('tracks').select('*').order('createdAt', { ascending: false });
-    if (error) console.error(error);
-    if (!data || data.length === 0) {
-      for (const t of INITIAL_DEFAULT_TRACKS) await supabase.from('tracks').insert(t);
-      return INITIAL_DEFAULT_TRACKS;
-    }
-    return data;
-  } else {
-    try {
-      if (fs.existsSync(TRACKS_FILE)) {
-        const data = fs.readFileSync(TRACKS_FILE, 'utf-8');
-        return JSON.parse(data);
-      }
-    } catch (e) {}
-    fs.writeFileSync(TRACKS_FILE, JSON.stringify(INITIAL_DEFAULT_TRACKS, null, 2));
-    return INITIAL_DEFAULT_TRACKS;
-  }
-}
-
-async function saveTrack(track: any) {
-  if (supabase) {
-    await supabase.from('tracks').upsert(track);
-  } else {
-    const tracks = await getTracks();
-    tracks.unshift(track);
-    fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks, null, 2));
-  }
-}
-
-async function deleteTrackData(id: string) {
-  if (supabase) {
-    await supabase.from('tracks').delete().eq('id', id);
-  } else {
-    const tracks = await getTracks();
-    fs.writeFileSync(TRACKS_FILE, JSON.stringify(tracks.filter(t => t.id !== id), null, 2));
-  }
-}
-
-async function resetTracks() {
-  if (supabase) {
-    await supabase.from('tracks').delete().neq('id', '0');
-    for (const t of INITIAL_DEFAULT_TRACKS) await supabase.from('tracks').insert(t);
-  } else {
-    fs.writeFileSync(TRACKS_FILE, JSON.stringify(INITIAL_DEFAULT_TRACKS, null, 2));
-  }
-}
-
-async function getContent(): Promise<any> {
-  if (supabase) {
-    const { data } = await supabase.from('content').select('data').eq('id', 'main').single();
-    if (!data) {
-      await supabase.from('content').insert({ id: 'main', data: DEFAULT_CONTENT });
-      return DEFAULT_CONTENT;
-    }
-    return { ...DEFAULT_CONTENT, ...data.data };
-  } else {
-    try {
-      if (fs.existsSync(CONTENT_FILE)) {
-        return { ...DEFAULT_CONTENT, ...JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf-8')) };
-      }
-    } catch(e) {}
-    fs.writeFileSync(CONTENT_FILE, JSON.stringify(DEFAULT_CONTENT, null, 2));
-    return DEFAULT_CONTENT;
-  }
-}
-
-async function saveContent(content: any) {
-  if (supabase) {
-    await supabase.from('content').upsert({ id: 'main', data: content });
-  } else {
-    fs.writeFileSync(CONTENT_FILE, JSON.stringify(content, null, 2));
-  }
-}
-
-async function getPosts(): Promise<any[]> {
-  if (supabase) {
-    const { data } = await supabase.from('posts').select('*').order('createdAt', { ascending: false });
-    if (!data || data.length === 0) {
-      for (const p of DEFAULT_POSTS) await supabase.from('posts').insert(p);
-      return DEFAULT_POSTS;
-    }
-    return data;
-  } else {
-    try {
-      if (fs.existsSync(POSTS_FILE)) {
-        return JSON.parse(fs.readFileSync(POSTS_FILE, 'utf-8'));
-      }
-    } catch(e) {}
-    fs.writeFileSync(POSTS_FILE, JSON.stringify(DEFAULT_POSTS, null, 2));
-    return DEFAULT_POSTS;
-  }
-}
-
-async function savePost(post: any) {
-  if (supabase) {
-    await supabase.from('posts').upsert(post);
-  } else {
-    const posts = await getPosts();
-    posts.unshift(post);
-    fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
-  }
-}
-
-async function updatePostData(id: string, updates: any) {
-  if (supabase) {
-    await supabase.from('posts').update(updates).eq('id', id);
-  } else {
-    const posts = await getPosts();
-    const idx = posts.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      posts[idx] = { ...posts[idx], ...updates };
-      fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
-    }
-  }
-}
-
-async function deletePostData(id: string) {
-  if (supabase) {
-    await supabase.from('posts').delete().eq('id', id);
-  } else {
-    const posts = await getPosts();
-    fs.writeFileSync(POSTS_FILE, JSON.stringify(posts.filter(p => p.id !== id), null, 2));
-  }
-}
-
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import { createServer as createViteServer } from 'vite';
-import { createClient } from '@supabase/supabase-js';
-
 
 const app = express();
 const PORT = 3000;
-
-// ==========================================
-// SUPABASE INITIALIZATION
-// ==========================================
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
-
-if (supabase) console.log('Supabase initialized.');
-else console.warn('No Supabase credentials. Falling back to local storage.');
-
-async function uploadToSupabase(file: Express.Multer.File, folder: string): Promise<string | undefined> {
-  if (!supabase) return undefined;
-  const ext = path.extname(file.originalname).toLowerCase();
-  const safeName = file.originalname.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-  const filename = `${folder}/${Date.now()}_${safeName}${ext ? '' : '.bin'}`;
-  
-  const { data, error } = await supabase.storage.from('media').upload(filename, file.buffer, {
-    contentType: file.mimetype,
-    upsert: false
-  });
-  
-  if (error) {
-    console.error('Supabase upload error:', error);
-    return undefined;
-  }
-  
-  const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(filename);
-  return publicUrl;
-}
-
 
 // Admin authentication keys
 const VALID_PASSWORDS = new Set(
@@ -536,8 +373,8 @@ app.get('/api/health', (req, res) => {
 // ==========================================
 
 // Public: Get all tracks (shared to all visitors)
-app.get('/api/tracks', async (req, res) => {
-  const tracks = await getTracks();
+app.get('/api/tracks', (req, res) => {
+  const tracks = getTracksFromDisk();
   res.json(tracks);
 });
 
@@ -561,7 +398,7 @@ app.post(
     { name: 'audio', maxCount: 1 },
     { name: 'cover', maxCount: 1 },
   ]),
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
       const audioFile = files?.['audio']?.[0];
@@ -591,13 +428,12 @@ app.post(
       const trackId = `track-${Date.now()}`;
       let audioBlobUrl: string | undefined = undefined;
       if (audioFile) {
-        if (supabase) audioBlobUrl = await uploadToSupabase(audioFile, 'audio');
-        else audioBlobUrl = `/uploads/audio/${audioFile.filename}`;
+        audioBlobUrl = `/uploads/audio/${audioFile.filename}`;
       }
+
       let finalCoverUrl = coverUrl;
       if (coverFile) {
-        if (supabase) finalCoverUrl = await uploadToSupabase(coverFile, 'covers');
-        else finalCoverUrl = `/uploads/covers/${coverFile.filename}`;
+        finalCoverUrl = `/uploads/covers/${coverFile.filename}`;
       } else if (!finalCoverUrl) {
         finalCoverUrl =
           'https://lh3.googleusercontent.com/aida-public/AB6AXuBbIOA4OG6qP6zaGo-TVABqDiacUDuSWwQ10szC0msiP6uvhXr3miJgVXPWvcYjDRYZ_UWAwLkmJLRY6FhGWSdXALNRxavnM_jB-zM_E1YN8P1KTNdtkPfFZ4wYoVvJUvI78onUHeN2ZSBAOfR1drBCK2k4hMA2HL28_E79atWKXPRu8DY-ChY5nA_OUILxXC58rMt6eJxO-C034Fu75hgxMSdYB3bfwmJizt7QqgHhgRdqwuzBpaO9Ng';
@@ -631,7 +467,9 @@ app.post(
         createdAt: Date.now(),
       };
 
-      await saveTrack(newTrack);
+      const tracks = getTracksFromDisk();
+      tracks.unshift(newTrack);
+      saveTracksToDisk(tracks);
 
       res.status(201).json({ success: true, track: newTrack });
     } catch (err: any) {
@@ -642,10 +480,10 @@ app.post(
 );
 
 // Admin: Delete a track
-app.delete('/api/admin/tracks/:id', requireAdminAuth, async (req, res) => {
+app.delete('/api/admin/tracks/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
-  const tracks = await getTracks();
-  const trackToDelete = tracks.find((t: any) => t.id === id);
+  const tracks = getTracksFromDisk();
+  const trackToDelete = tracks.find((t) => t.id === id);
 
   if (!trackToDelete) {
     res.status(404).json({ error: 'Pista no encontrada' });
@@ -664,29 +502,30 @@ app.delete('/api/admin/tracks/:id', requireAdminAuth, async (req, res) => {
     }
   }
 
-  await deleteTrackData(id);
+  const updatedTracks = tracks.filter((t) => t.id !== id);
+  saveTracksToDisk(updatedTracks);
   res.json({ success: true, message: 'Pista eliminada del archivo' });
 });
 
 // Admin: Reset to default catalogue
-app.post('/api/admin/reset', requireAdminAuth, async (req, res) => {
-  await resetTracks();
+app.post('/api/admin/reset', requireAdminAuth, (req, res) => {
+  saveTracksToDisk(INITIAL_DEFAULT_TRACKS);
   res.json({ success: true, tracks: INITIAL_DEFAULT_TRACKS });
 });
 
 // ==========================================
 // SITE CONTENT API (TITULOS, TEXTOS & BIO)
 // ==========================================
-app.get('/api/content', async (req, res) => {
-  const content = await getContent();
+app.get('/api/content', (req, res) => {
+  const content = getContentFromDisk();
   res.json(content);
 });
 
-app.put('/api/admin/content', requireAdminAuth, async (req, res) => {
+app.put('/api/admin/content', requireAdminAuth, (req, res) => {
   try {
-    const current = await getContent();
+    const current = getContentFromDisk();
     const updated = { ...current, ...req.body };
-    await saveContent(updated);
+    saveContentToDisk(updated);
     res.json({ success: true, content: updated });
   } catch (err: any) {
     res.status(500).json({ error: 'Error guardando contenidos del sitio: ' + err.message });
@@ -696,8 +535,8 @@ app.put('/api/admin/content', requireAdminAuth, async (req, res) => {
 // ==========================================
 // POSTS (PUBLICACIONES) API
 // ==========================================
-app.get('/api/posts', async (req, res) => {
-  const posts = await getPosts();
+app.get('/api/posts', (req, res) => {
+  const posts = getPostsFromDisk();
   res.json(posts);
 });
 
@@ -705,7 +544,7 @@ app.post(
   '/api/admin/posts',
   requireAdminAuth,
   upload.fields([{ name: 'image', maxCount: 1 }]),
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
       const imageFile = files?.['image']?.[0];
@@ -718,8 +557,7 @@ app.post(
 
       let finalImageUrl = imageUrl || '';
       if (imageFile) {
-        if (supabase) finalImageUrl = await uploadToSupabase(imageFile, 'images') || '';
-        else finalImageUrl = `/uploads/images/${imageFile.filename}`;
+        finalImageUrl = `/uploads/images/${imageFile.filename}`;
       }
 
       const newPost = {
@@ -732,7 +570,9 @@ app.post(
         createdAt: Date.now(),
       };
 
-      await savePost(newPost);
+      const posts = getPostsFromDisk();
+      posts.unshift(newPost);
+      savePostsToDisk(posts);
 
       res.status(201).json({ success: true, post: newPost });
     } catch (err: any) {
@@ -745,15 +585,15 @@ app.put(
   '/api/admin/posts/:id',
   requireAdminAuth,
   upload.fields([{ name: 'image', maxCount: 1 }]),
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
       const imageFile = files?.['image']?.[0];
       const { title, category, date, content, imageUrl } = req.body;
 
-      const posts = await getPosts();
-      const postIndex = posts.findIndex((p: any) => p.id === id);
+      const posts = getPostsFromDisk();
+      const postIndex = posts.findIndex((p) => p.id === id);
       if (postIndex === -1) {
         res.status(404).json({ error: 'Publicación no encontrada' });
         return;
@@ -761,11 +601,10 @@ app.put(
 
       let finalImageUrl = imageUrl ?? posts[postIndex].imageUrl;
       if (imageFile) {
-        if (supabase) finalImageUrl = await uploadToSupabase(imageFile, 'images') || '';
-        else finalImageUrl = `/uploads/images/${imageFile.filename}`;
+        finalImageUrl = `/uploads/images/${imageFile.filename}`;
       }
 
-      const updatedPostData = {
+      posts[postIndex] = {
         ...posts[postIndex],
         title: title ? title.trim() : posts[postIndex].title,
         category: category ? category.trim() : posts[postIndex].category,
@@ -773,8 +612,8 @@ app.put(
         content: content ? content.trim() : posts[postIndex].content,
         imageUrl: finalImageUrl,
       };
-      await updatePostData(id, updatedPostData);
-      posts[postIndex] = updatedPostData;
+
+      savePostsToDisk(posts);
       res.json({ success: true, post: posts[postIndex] });
     } catch (err: any) {
       res.status(500).json({ error: 'Error actualizando publicación: ' + err.message });
@@ -782,10 +621,10 @@ app.put(
   }
 );
 
-app.delete('/api/admin/posts/:id', requireAdminAuth, async (req, res) => {
+app.delete('/api/admin/posts/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
-  const posts = await getPosts();
-  const postToDelete = posts.find((p: any) => p.id === id);
+  const posts = getPostsFromDisk();
+  const postToDelete = posts.find((p) => p.id === id);
   if (!postToDelete) {
     res.status(404).json({ error: 'Publicación no encontrada' });
     return;
@@ -802,7 +641,8 @@ app.delete('/api/admin/posts/:id', requireAdminAuth, async (req, res) => {
     }
   }
 
-  await deletePostData(id);
+  const updatedPosts = posts.filter((p) => p.id !== id);
+  savePostsToDisk(updatedPosts);
   res.json({ success: true, message: 'Publicación eliminada' });
 });
 
@@ -811,12 +651,12 @@ app.post(
   '/api/admin/upload-image',
   requireAdminAuth,
   upload.single('image'),
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     if (!req.file) {
       res.status(400).json({ error: 'No se envió ningún archivo de imagen' });
       return;
     }
-    const imageUrl = supabase && req.file ? await uploadToSupabase(req.file, 'images') : (req.file ? `/uploads/images/${req.file.filename}` : '');
+    const imageUrl = `/uploads/images/${req.file.filename}`;
     res.json({ success: true, url: imageUrl });
   }
 );
