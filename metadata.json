@@ -1,0 +1,6 @@
+{
+  "name": "Despojados - Colectivo Musical & Archivo Autogestivo",
+  "description": "Espacio cultural comunitario y archivo musical de Despojados: tocadiscos en vivo, batea de canciones, fanzine barrial y producción a pulmón.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
