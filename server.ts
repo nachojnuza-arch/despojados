@@ -1,3 +1,4 @@
+import "dotenv/config";
 // ==========================================
 // DB Helpers (Supabase + Local Fallback)
 // ==========================================
