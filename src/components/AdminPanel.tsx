@@ -487,9 +487,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            <p className="text-[11px] font-fanzine text-[#605447] mt-1 font-bold">
-              Tip: Podés ingresar con <code className="bg-[#e2d8c5] px-1 py-0.5 font-mono text-[#181816] border border-black/20">despojados</code> o <code className="bg-[#e2d8c5] px-1 py-0.5 font-mono text-[#181816] border border-black/20">diagonal_master_2024</code>.
-            </p>
+            
           </div>
 
           <div className="flex items-center gap-2 mt-2">
@@ -634,14 +632,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div className="flex flex-col gap-2 font-fanzine text-xs sm:text-sm text-[#181816]">
               <h3 className="font-poster text-2xl uppercase font-black text-[#181816] leading-none">
-                ¿Cómo subir tu música y qué pasa con la base de datos?
+                PASOS SIMPLES PARA SUBIR UN TEMA:
               </h3>
-              <p className="leading-relaxed font-bold">
-                <span className="text-[#b91c1c] uppercase font-black">1. NO NECESITÁS CONFIGURAR NINGUNA BASE DE DATOS:</span> La página ya funciona con su propio sistema de archivo permanente y servidor de almacenamiento local en disco. Cada archivo MP3 o WAV y cada foto que subas queda guardada automáticamente para siempre y lista para sonar en la bandeja tocadiscos de cualquier visitante.
-              </p>
-              <p className="leading-relaxed font-bold">
-                <span className="text-[#b91c1c] uppercase font-black">2. PASOS SIMPLES PARA SUBIR UN TEMA:</span>
-              </p>
               <ul className="list-disc pl-5 space-y-1 font-bold">
                 <li>Hacé clic en <strong>"Seleccionar archivo de audio"</strong> y elegí la canción desde tu computadora o celular (.mp3 o .wav).</li>
                 <li>Escribí el <strong>Título del tema</strong>, y si querés agregá el álbum o año.</li>
